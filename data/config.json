@@ -1,0 +1,40 @@
+{
+  "family": {
+    "adults": 2,
+    "children": 2,
+    "members": [
+      {"name": "Яна", "age": 39, "role": "adult"},
+      {"name": "Иван", "age": 40, "role": "adult"},
+      {"name": "Филипп", "age": 3, "role": "child", "notes": "детское питание, маленькие порции"},
+      {"name": "Пётр", "age": 12, "role": "child", "notes": "подросток, активный"}
+    ],
+    "pets": [
+      {"type": "dog", "breed": "французский бульдог", "age": 2},
+      {"type": "cat", "age": 1.5}
+    ],
+    "preferences": [],
+    "allergies": [],
+    "dietary": []
+  },
+  "address": {
+    "street": "Eha 3",
+    "city": "Taebla",
+    "region": "Läänemaa",
+    "country": "Estonia",
+    "postcode": "90601"
+  },
+  "selver": {
+    "email": "",
+    "password": "",
+    "token": null,
+    "cart_id": null,
+    "delivery_postcode": "90601"
+  },
+  "meal_planning": {
+    "language": "ru",
+    "cuisine_preferences": ["european", "russian", "italian"],
+    "meals_per_day": ["breakfast", "lunch", "dinner"],
+    "budget_per_week_eur": 80,
+    "notes": "Учитывать Филиппа 3 года — детские блюда. Пётр 12 лет — нормальные порции."
+  }
+}

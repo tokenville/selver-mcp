@@ -1,0 +1,103 @@
+{
+  "token": "eyJraWQiOiIxIiwiYWxnIjoiSFMyNTYifQ.eyJ1aWQiOjE3NDUxNCwidXR5cGlkIjozLCJpYXQiOjE3NzUyMTQ0ODAsImV4cCI6MTc3NTIxODA4MH0.DZvjERHRBrw6Ykk9tWHlkL3sKLZqVwbXX-q3iMdaVZY",
+  "cart_token": "6976532",
+  "cookies": {
+    "_hjSession_3188303": "eyJpZCI6IjU2NTAyOWY4LTEyNjAtNDkzZi1hM2FlLWNlZDcwNjEyZWVhMCIsImMiOjE3NzUyMTQ0Njc0MjIsInMiOjAsInIiOjAsInNiIjowLCJzciI6MCwic2UiOjAsImZzIjoxLCJzcCI6MH0=",
+    "_upscope__region": "ImV1LWNlbnRyYWwi",
+    "CookieConsent": "{stamp:%27IYM7wYwH5czQ+IRLE24RNS4fc7c/R2P1vK8b9xPBifPzro2ltGd7Gw==%27%2Cnecessary:true%2Cpreferences:true%2Cstatistics:true%2Cmarketing:true%2Cmethod:%27explicit%27%2Cver:1%2Cutc:1775214467852%2Cregion:%27ee%27}",
+    "_clck": "fd63zb%5E2%5Eg4w%5E1%5E2284",
+    "_gcl_au": "1.1.1443647379.1775214468",
+    "_ga": "GA1.1.413523433.1775214468",
+    "_fbp": "fb.1.1775214468180.125709693737205493",
+    "_hjSessionUser_3188303": "eyJpZCI6ImIxNTA0MzhmLWY3MDMtNTdkNy1hZWYzLWRhNzgyY2QxOTU1YyIsImNyZWF0ZWQiOjE3NzUyMTQ0Njc0MjEsImV4aXN0aW5nIjp0cnVlfQ==",
+    "_upscope__shortId": "IlpBRUxYWlpHUEc0MVhGSkdaIg==",
+    "_clsk": "12ysj5p%5E1775214481622%5E4%5E1%5Eq.clarity.ms%2Fcollect",
+    "_ga_WJ2FHJD5RF": "GS2.1.s1775214467$o1$g1$t1775214481$j46$l0$h0"
+  },
+  "user": {
+    "id": 174514,
+    "group_id": 17,
+    "default_billing": "196208",
+    "default_shipping": "196208",
+    "created_at": "2024-03-29 09:36:59",
+    "updated_at": "2026-04-03 11:07:59",
+    "created_in": "Eesti",
+    "dob": "1985-11-08",
+    "email": "0959741@gmail.com",
+    "firstname": "Ivan",
+    "lastname": "Sokolov",
+    "gender": 1,
+    "store_id": 1,
+    "website_id": 1,
+    "addresses": [
+      {
+        "id": 196208,
+        "customer_id": 174514,
+        "region": {
+          "region_code": "L\u00e4\u00e4ne maakond",
+          "region": "L\u00e4\u00e4ne maakond",
+          "region_id": 0
+        },
+        "region_id": 0,
+        "country_id": "EE",
+        "street": [
+          "Eha t\u00e4nav  3",
+          "Taebla alevik"
+        ],
+        "telephone": "37259025467",
+        "postcode": "90801",
+        "city": "L\u00e4\u00e4ne-Nigula vald",
+        "firstname": "Ivan",
+        "lastname": "Sokolov",
+        "default_shipping": true,
+        "default_billing": true,
+        "custom_attributes": [
+          {
+            "attribute_code": "regio_address",
+            "value": "Eha t\u00e4nav 3, Taebla alevik, L\u00e4\u00e4ne-Nigula vald, L\u00e4\u00e4ne maakond"
+          },
+          {
+            "attribute_code": "regio_address_id",
+            "value": "18195936"
+          },
+          {
+            "attribute_code": "regio_coordinates",
+            "value": "58.9529745182289,23.7265950372226"
+          }
+        ]
+      }
+    ],
+    "disable_auto_group_change": 0,
+    "extension_attributes": {
+      "is_subscribed": false,
+      "company_attributes": {
+        "customer_id": 174514,
+        "company_id": 0,
+        "status": 1,
+        "is_default": true
+      },
+      "legacy_customer_id": 134903
+    },
+    "custom_attributes": [
+      {
+        "attribute_code": "ssn",
+        "value": "38511080251"
+      },
+      {
+        "attribute_code": "partnercard_id",
+        "value": "9233660043329417"
+      },
+      {
+        "attribute_code": "card_api_id",
+        "value": "1060322"
+      },
+      {
+        "attribute_code": "legacy_customer_id",
+        "value": "134903"
+      }
+    ],
+    "groupToken": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJncm91cF9pZCI6MTcsImlkIjoxNzQ1MTQsInVzZXIiOiIwOTU5NzQxQGdtYWlsLmNvbSJ9.hmV4KU39anmK41l1oY56WYhmb5Lv_xNtY81u0I9I45Q"
+  },
+  "id_code": "38511080251",
+  "saved_at": 1775214481
+}
