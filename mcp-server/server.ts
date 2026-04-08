@@ -23,6 +23,8 @@ if (existsSync(envFile)) {
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
+import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js'
+import { createServer, type IncomingMessage, type ServerResponse } from 'http'
 import { z } from 'zod'
 
 import { CATEGORIES, searchProducts, getDeals } from './src/catalog.js'
@@ -318,6 +320,100 @@ server.tool(
 
 // ── Start ──────────────────────────────────────────────────────────────────
 
-const transport = new StdioServerTransport()
-await server.connect(transport)
-process.stderr.write('selver MCP server v1.0.0 started\n')
+const mode = process.env.MCP_TRANSPORT || 'stdio'
+
+if (mode === 'http') {
+  const port = parseInt(process.env.PORT || '3000')
+  const apiKey = process.env.API_KEY
+
+  const transports = new Map<string, StreamableHTTPServerTransport>()
+
+  function checkApiKey(req: IncomingMessage, res: ServerResponse): boolean {
+    if (!apiKey) return true
+    const provided = req.headers['x-api-key'] || new URL(req.url!, `http://${req.headers.host}`).searchParams.get('api_key')
+    if (provided !== apiKey) {
+      res.writeHead(401, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ error: 'Invalid or missing API key' }))
+      return false
+    }
+    return true
+  }
+
+  function readBody(req: IncomingMessage): Promise<string> {
+    return new Promise((resolve, reject) => {
+      let data = ''
+      req.on('data', chunk => data += chunk)
+      req.on('end', () => resolve(data))
+      req.on('error', reject)
+    })
+  }
+
+  const httpServer = createServer(async (req, res) => {
+    if (req.url === '/health') {
+      res.writeHead(200, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ status: 'ok', storage: storage.backend }))
+      return
+    }
+
+    if (!req.url?.startsWith('/mcp')) {
+      res.writeHead(404)
+      res.end('Not found')
+      return
+    }
+
+    if (!checkApiKey(req, res)) return
+
+    if (req.method === 'POST') {
+      const body = await readBody(req)
+      const parsed = JSON.parse(body)
+      const sessionId = req.headers['mcp-session-id'] as string | undefined
+
+      if (sessionId && transports.has(sessionId)) {
+        await transports.get(sessionId)!.handleRequest(req, res, parsed)
+        return
+      }
+
+      const transport = new StreamableHTTPServerTransport({
+        sessionIdGenerator: () => crypto.randomUUID(),
+        onsessioninitialized: (id) => {
+          transports.set(id, transport)
+          process.stderr.write(`session started: ${id}\n`)
+        },
+        onsessionclosed: (id) => {
+          transports.delete(id)
+          process.stderr.write(`session closed: ${id}\n`)
+        },
+      })
+
+      await server.connect(transport)
+      await transport.handleRequest(req, res, parsed)
+    } else if (req.method === 'GET') {
+      const sessionId = req.headers['mcp-session-id'] as string | undefined
+      if (sessionId && transports.has(sessionId)) {
+        await transports.get(sessionId)!.handleRequest(req, res)
+      } else {
+        res.writeHead(400, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ error: 'Missing or invalid session ID' }))
+      }
+    } else if (req.method === 'DELETE') {
+      const sessionId = req.headers['mcp-session-id'] as string | undefined
+      if (sessionId && transports.has(sessionId)) {
+        await transports.get(sessionId)!.handleRequest(req, res)
+      } else {
+        res.writeHead(400)
+        res.end()
+      }
+    } else {
+      res.writeHead(405)
+      res.end()
+    }
+  })
+
+  httpServer.listen(port, () => {
+    process.stderr.write(`selver MCP server v1.0.0 (http) on port ${port}\n`)
+  })
+} else {
+  const transport = new StdioServerTransport()
+  await server.connect(transport)
+  process.stderr.write('selver MCP server v1.0.0 (stdio) started\n')
+}
