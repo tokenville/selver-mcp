@@ -8,6 +8,19 @@
  * Runs as stdio MCP server under Bun.
  */
 
+import { dirname, join } from 'path'
+import { existsSync, readFileSync } from 'fs'
+
+// Load .env from project root (parent of mcp-server/)
+const ROOT = dirname(import.meta.dir)
+const envFile = join(ROOT, '.env')
+if (existsSync(envFile)) {
+  for (const line of readFileSync(envFile, 'utf8').split('\n')) {
+    const m = line.match(/^\s*([A-Z_]+)\s*=\s*(.+?)\s*$/)
+    if (m && !process.env[m[1]]) process.env[m[1]] = m[2]
+  }
+}
+
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { z } from 'zod'
@@ -250,29 +263,33 @@ server.tool(
 
 server.tool(
   'pantry_add',
-  'Add item to pantry or increase quantity of existing item.',
+  'Add one or more items to pantry. Pass an array for batch additions (single tool call instead of many).',
   {
-    name: z.string().describe('Item name (Selver product name or free text)'),
-    quantity: z.number().optional(),
-    unit: z.string().optional().describe('Unit: kg, L, pcs, g, ml, etc.'),
-    category: z.string().optional().describe('Category: dairy, meat, vegetables, etc.'),
+    items: z.array(z.object({
+      name: z.string().describe('Item name (Selver product name or free text)'),
+      quantity: z.number().optional(),
+      unit: z.string().optional().describe('Unit: kg, L, pcs, g, ml, etc.'),
+      category: z.string().optional().describe('Category: dairy, meat, vegetables, etc.'),
+    })).describe('Items to add'),
   },
-  async ({ name, quantity, unit, category }) => {
-    const items = await storage.addPantryItem(name, quantity, unit, category)
-    return { content: [{ type: 'text', text: `Updated pantry (${items.length} items).` }] }
+  async ({ items: toAdd }) => {
+    const result = await storage.addPantryItems(toAdd)
+    return { content: [{ type: 'text', text: `Added ${toAdd.length} item(s). Pantry now has ${result.length} items.` }] }
   },
 )
 
 server.tool(
   'pantry_remove',
-  'Remove item from pantry or decrease its quantity.',
+  'Remove one or more items from pantry. Pass an array for batch removals (single tool call instead of many).',
   {
-    name: z.string().describe('Item name (partial match)'),
-    quantity: z.number().optional().describe('Amount to remove (omit to remove entirely)'),
+    items: z.array(z.object({
+      name: z.string().describe('Item name (partial match)'),
+      quantity: z.number().optional().describe('Amount to remove (omit to remove entirely)'),
+    })).describe('Items to remove'),
   },
-  async ({ name, quantity }) => {
-    const items = await storage.removePantryItem(name, quantity)
-    return { content: [{ type: 'text', text: `Updated pantry (${items.length} items).` }] }
+  async ({ items: toRemove }) => {
+    const result = await storage.removePantryItems(toRemove)
+    return { content: [{ type: 'text', text: `Removed ${toRemove.length} item(s). Pantry now has ${result.length} items.` }] }
   },
 )
 

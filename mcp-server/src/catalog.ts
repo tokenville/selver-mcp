@@ -26,8 +26,12 @@ export const CATEGORIES: Record<string, { id: number; name_et: string }> = {
   dry_goods:   { id: 9,   name_et: 'Kuivained, hommikusöögid' },
   drinks:      { id: 48,  name_et: 'Veed, mahlad, joogid' },
   frozen_meat: { id: 285, name_et: 'Külmutatud liha- ja kalatooted' },
-  fruits:      { id: 253, name_et: 'Puuviljad' },
-  vegetables:  { id: 254, name_et: 'Köögiviljad' },
+  fruits:      { id: 210, name_et: 'Õunad, pirnid' },
+  tropical:    { id: 212, name_et: 'Troopilised, eksootilised viljad' },
+  vegetables:  { id: 213, name_et: 'Köögiviljad, juurviljad' },
+  mushrooms:   { id: 214, name_et: 'Seened' },
+  herbs:       { id: 215, name_et: 'Maitsetaimed, värsked salatid, piprad' },
+  berries:     { id: 217, name_et: 'Marjad' },
   sausages:    { id: 225, name_et: 'Vorstid, viinerid' },
   sweets:      { id: 270, name_et: 'Maiustused' },
   baby:        { id: 296, name_et: 'Lastekaubad' },
@@ -59,15 +63,38 @@ function formatProduct(src: any): Product {
   }
 }
 
+// Non-food category IDs to exclude from default search results
+const NON_FOOD_CATEGORY_IDS = [
+  63,  // Enesehooldustarbed (cosmetics)
+  64, 68, 71, 77, 82, 94,
+  100, // Majapidamis- ja kodukaubad (household)
+  101, 107, 113, 118, 123, 135, 143, 149, 155,
+  161, // Aed ja lilled (garden)
+  162, 163, 164, 165,
+  166, // Vabaajakaubad (leisure)
+  167, 170, 174, 184, 190, 197, 202, 206,
+  322, 323, // Hooajakaubad (seasonal)
+  434, // Vabad ametikohad (vacancies)
+  511,
+]
+
 export async function searchProducts(text?: string, categoryId?: number, size = 20): Promise<Product[]> {
   const must: any[] = [{ terms: { status: [0, 1] } }]
-  if (categoryId) must.push({ terms: { category_ids: [categoryId] } })
+  const must_not: any[] = []
+  if (categoryId) {
+    must.push({ terms: { category_ids: [categoryId] } })
+  } else {
+    // Exclude non-food categories (cosmetics, household, garden, leisure)
+    must_not.push({ terms: { category_ids: NON_FOOD_CATEGORY_IDS } })
+  }
   if (text) {
     for (const word of text.toLowerCase().split(/\s+/)) {
       must.push({ wildcard: { name: `*${word}*` } })
     }
   }
-  const query = { query: { bool: { filter: { bool: { must } } } } }
+  const filter: any = { bool: { must } }
+  if (must_not.length) filter.bool.must_not = must_not
+  const query = { query: { bool: { filter } } }
   const result = await catalogSearch('product', query, size)
   return (result?.hits?.hits || []).map((h: any) => formatProduct(h._source))
 }
