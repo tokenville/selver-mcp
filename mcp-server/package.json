@@ -1,6 +1,6 @@
 {
   "name": "selver-mcp",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "MCP server for Selver.ee grocery store — search, cart, pantry, meal planning",
   "type": "module",
   "main": "server.ts",
@@ -8,7 +8,8 @@
     "start": "bun run server.ts"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.0.0",
-    "zod": "^3.23.0"
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@supabase/supabase-js": "^2.102.1",
+    "zod": "3.25.76"
   }
 }

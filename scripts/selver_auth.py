@@ -13,7 +13,7 @@ Flow:
 
 Usage:
     python3 selver_auth.py
-    python3 selver_auth.py --id-code 38511080251 --timeout 120
+    python3 selver_auth.py --id-code YOUR_ID_CODE --timeout 120
 """
 
 import asyncio
@@ -207,7 +207,7 @@ def save_token(data: dict):
 
 def main():
     parser = argparse.ArgumentParser(description="Selver.ee browser-based login")
-    parser.add_argument("--id-code", default="38511080251", help="Estonian personal ID code")
+    parser.add_argument("--id-code", default=os.environ.get("SELVER_ID_CODE", ""), help="Estonian personal ID code")
     parser.add_argument("--timeout", type=int, default=120, help="Seconds to wait for Smart-ID")
     parser.add_argument("--visible", action="store_true", help="Show browser window (non-headless)")
     args = parser.parse_args()

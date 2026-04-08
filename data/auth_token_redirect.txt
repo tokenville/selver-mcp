@@ -1,1 +1,0 @@
-https://sso.partnerkaart.ee/auth/realms/partner/login-actions/authenticate?session_code=LTKU742QiBbFS6eRb5ZQ2aq1ZBjlsw7L5_tcgkC8b4A&execution=55eaedd7-ecb9-4c31-a77c-ab56b63796bf&client_id=partnerkaart&tab_id=gbB7kJ3Bgbc&client_data=eyJydSI6Imh0dHBzOi8vd3d3LnBhcnRuZXJrYWFydC5lZS9pc2V0ZWVuaW5kdXMvIiwicnQiOiJjb2RlIiwicm0iOiJmcmFnbWVudCJ9

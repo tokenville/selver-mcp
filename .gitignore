@@ -1,6 +1,16 @@
-# Auth tokens & secrets
-.telegram/
+# User data (use *.example.json as templates)
+data/config.json
+data/pantry.json
+data/meal_plan.json
 data/selver_token.json
+data/auth_token_redirect.txt
+
+# Secrets & local config
+.telegram/
+.env
+.mcp.json
+.agents/
+skills-lock.json
 
 # Dependencies
 node_modules/
@@ -14,7 +24,6 @@ miniapp/node_modules/
 __pycache__/
 *.pyc
 *.pyo
-.env
 
 # OS
 .DS_Store

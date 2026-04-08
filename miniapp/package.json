@@ -1,6 +1,0 @@
-{
-  "name": "selver-miniapp",
-  "scripts": {
-    "start": "bun run server.ts"
-  }
-}
