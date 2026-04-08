@@ -1,0 +1,20 @@
+# Auth tokens & secrets
+.telegram/
+data/selver_token.json
+
+# Dependencies
+node_modules/
+mcp-server/node_modules/
+miniapp/node_modules/
+
+# Bun lockfile (optional - remove if you want to track it)
+# mcp-server/bun.lock
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.env
+
+# OS
+.DS_Store
