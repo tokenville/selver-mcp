@@ -3,7 +3,7 @@
  * Selver.ee MCP Server
  *
  * Tools for grocery shopping: product search, cart management,
- * pantry tracking, delivery timeslots, family config.
+ * delivery timeslots.
  *
  * Runs as stdio MCP server under Bun.
  */
@@ -30,10 +30,8 @@ import { z } from 'zod'
 import { CATEGORIES, searchProducts, getDeals } from './src/catalog.js'
 import { SelverAuth } from './src/auth.js'
 import * as cart from './src/cart.js'
-import { createStorage } from './src/storage.js'
 
 const auth = new SelverAuth()
-const storage = createStorage()
 
 const categoryKeys = Object.keys(CATEGORIES).join(', ')
 
@@ -41,7 +39,7 @@ const server = new McpServer(
   { name: 'selver', version: '1.0.0' },
   {
     capabilities: { tools: {} },
-    instructions: `MCP server for Selver.ee — Estonia's largest grocery store. Tools for product search, cart management, pantry tracking, and delivery scheduling. Product names are in Estonian. Storage backend: ${storage.backend}.`,
+    instructions: `MCP server for Selver.ee — Estonia's largest grocery store. Tools for product search, cart management, and delivery scheduling. Product names are in Estonian.`,
   },
 )
 
@@ -119,7 +117,7 @@ server.tool(
         type: 'text',
         text: products.length
           ? products.map(p => `${p.name} | ${p.sku} | was ${p.price}€ → NOW ${p.special_price}€`).join('\n') +
-              `\n--- ${products.length} deals shown${o + l < total ? ` | next offset: ${o + l}` : ''}`
+              paginationFooter(o, l, total)
           : 'No deals found right now.',
       }],
     }
@@ -292,89 +290,6 @@ server.tool(
   { annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true } },
 )
 
-// ── Pantry tools (storage-backed) ─────────────────────────────────────────
-
-server.tool(
-  'selver_pantry_view',
-  'View current pantry (home inventory). Shows all items with quantities.',
-  {},
-  async () => {
-    const items = await storage.getPantry()
-    if (!items.length) return { content: [{ type: 'text', text: 'Pantry is empty.' }] }
-    return {
-      content: [{
-        type: 'text',
-        text: items.map((i, idx) => {
-          let line = `${idx + 1}. ${i.name}`
-          if (i.quantity) line += ` — ${i.quantity} ${i.unit || 'pcs'}`
-          if (i.category) line += ` (${i.category})`
-          return line
-        }).join('\n'),
-      }],
-    }
-  },
-  { annotations: { readOnlyHint: true, destructiveHint: false } },
-)
-
-server.tool(
-  'selver_pantry_add',
-  'Add one or more items to pantry. Pass an array for batch additions (single tool call instead of many).',
-  {
-    items: z.array(z.object({
-      name: z.string().describe('Item name (Selver product name or free text)'),
-      quantity: z.number().optional(),
-      unit: z.string().optional().describe('Unit: kg, L, pcs, g, ml, etc.'),
-      category: z.string().optional().describe('Category: dairy, meat, vegetables, etc.'),
-    })).describe('Items to add'),
-  },
-  async ({ items: toAdd }) => {
-    const result = await storage.addPantryItems(toAdd)
-    return { content: [{ type: 'text', text: `Added ${toAdd.length} item(s). Pantry now has ${result.length} items.` }] }
-  },
-  { annotations: { readOnlyHint: false, destructiveHint: false } },
-)
-
-server.tool(
-  'selver_pantry_remove',
-  'Remove one or more items from pantry. Pass an array for batch removals (single tool call instead of many).',
-  {
-    items: z.array(z.object({
-      name: z.string().describe('Item name (partial match)'),
-      quantity: z.number().optional().describe('Amount to remove (omit to remove entirely)'),
-    })).describe('Items to remove'),
-  },
-  async ({ items: toRemove }) => {
-    const result = await storage.removePantryItems(toRemove)
-    return { content: [{ type: 'text', text: `Removed ${toRemove.length} item(s). Pantry now has ${result.length} items.` }] }
-  },
-  { annotations: { readOnlyHint: false, destructiveHint: true } },
-)
-
-// ── Family config ─────────────────────────────────────────────────────────
-
-server.tool(
-  'selver_family_config',
-  'View family profile: members, pets, dietary preferences, address, meal planning settings.',
-  {},
-  async () => {
-    const config = await storage.getConfig()
-    if (!config) return { content: [{ type: 'text', text: 'No family config found. Set one up with selver_update_family_config.' }] }
-    return { content: [{ type: 'text', text: JSON.stringify(config, null, 2) }] }
-  },
-  { annotations: { readOnlyHint: true, destructiveHint: false } },
-)
-
-server.tool(
-  'selver_update_family_config',
-  'Update family profile (members, address, meal preferences). Pass partial config to merge with existing.',
-  { config: z.record(z.any()).describe('Partial config object to merge') },
-  async ({ config: patch }) => {
-    const updated = await storage.updateConfig(patch)
-    return { content: [{ type: 'text', text: `Config updated.\n${JSON.stringify(updated, null, 2)}` }] }
-  },
-  { annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true } },
-)
-
 // ── Start ──────────────────────────────────────────────────────────────────
 
 const mode = process.env.MCP_TRANSPORT || 'stdio'
@@ -420,7 +335,7 @@ if (mode === 'http') {
   const httpServer = createServer(async (req, res) => {
     if (req.url === '/health') {
       res.writeHead(200, { 'Content-Type': 'application/json' })
-      res.end(JSON.stringify({ status: 'ok', storage: storage.backend }))
+      res.end(JSON.stringify({ status: 'ok' }))
       return
     }
 

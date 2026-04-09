@@ -1,9 +1,7 @@
-# User data (use *.example.json as templates)
-data/config.json
-data/pantry.json
-data/meal_plan.json
-data/selver_token.json
-data/auth_token_redirect.txt
+# Runtime data
+data/
+pdf-examples/
+supabase/
 
 # Secrets & local config
 .telegram/
