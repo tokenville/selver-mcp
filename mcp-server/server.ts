@@ -47,13 +47,25 @@ const server = new McpServer(
 
 // ── Catalog tools (no auth required) ──────────────────────────────────────
 
+function paginationFooter(offset: number, limit: number, total: number): string {
+  const hasMore = offset + limit < total
+  return `\n--- ${offset + 1}–${Math.min(offset + limit, total)} of ${total}${hasMore ? ` | next offset: ${offset + limit}` : ''}`
+}
+
 server.tool(
-  'search_products',
+  'selver_search_products',
   `Search Selver.ee products by name (Estonian or partial). Returns name, SKU, price, stock status. No auth required. Category keys: ${categoryKeys}`,
-  { query: z.string(), category: z.string().optional(), limit: z.number().optional() },
-  async ({ query, category, limit }) => {
+  {
+    query: z.string(),
+    category: z.string().optional(),
+    limit: z.number().optional().describe('Max results (default 10)'),
+    offset: z.number().optional().describe('Pagination offset (default 0)'),
+  },
+  async ({ query, category, limit, offset }) => {
+    const l = limit || 10
+    const o = offset || 0
     const categoryId = category ? CATEGORIES[category]?.id : undefined
-    const products = await searchProducts(query, categoryId, limit || 10)
+    const { products, total } = await searchProducts(query, categoryId, l, o)
     return {
       content: [{
         type: 'text',
@@ -62,47 +74,63 @@ server.tool(
               const sale = p.special_price ? ` (SALE: ${p.special_price}€)` : ''
               const stock = p.stock_status === 1 ? '' : ' [OUT OF STOCK]'
               return `${p.name} | ${p.sku} | ${p.price}€${sale}${stock}`
-            }).join('\n')
+            }).join('\n') + paginationFooter(o, l, total)
           : 'No products found. Try different Estonian keywords (e.g. "piim" for milk, "leib" for bread).',
       }],
     }
   },
+  { annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: true } },
 )
 
 server.tool(
-  'browse_category',
+  'selver_browse_category',
   `Browse products in a category without text search. Category keys: ${categoryKeys}`,
-  { category: z.string(), limit: z.number().optional() },
-  async ({ category, limit }) => {
-    const cat = CATEGORIES[category]
-    if (!cat) return { content: [{ type: 'text', text: `Unknown category. Available: ${categoryKeys}` }] }
-    const products = await searchProducts(undefined, cat.id, limit || 20)
-    return { content: [{ type: 'text', text: products.map(p => `${p.name} | ${p.sku} | ${p.price}€`).join('\n') }] }
+  {
+    category: z.string(),
+    limit: z.number().optional().describe('Max results (default 20)'),
+    offset: z.number().optional().describe('Pagination offset (default 0)'),
   },
+  async ({ category, limit, offset }) => {
+    const cat = CATEGORIES[category]
+    if (!cat) return { isError: true, content: [{ type: 'text', text: `Unknown category. Available: ${categoryKeys}` }] }
+    const l = limit || 20
+    const o = offset || 0
+    const { products, total } = await searchProducts(undefined, cat.id, l, o)
+    return { content: [{ type: 'text', text: products.map(p => `${p.name} | ${p.sku} | ${p.price}€`).join('\n') + paginationFooter(o, l, total) }] }
+  },
+  { annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: true } },
 )
 
 server.tool(
-  'find_deals',
+  'selver_find_deals',
   'Find products currently on sale (discounted price).',
-  { category: z.string().optional(), limit: z.number().optional() },
-  async ({ category, limit }) => {
+  {
+    category: z.string().optional(),
+    limit: z.number().optional().describe('Max results (default 20)'),
+    offset: z.number().optional().describe('Pagination offset (default 0)'),
+  },
+  async ({ category, limit, offset }) => {
+    const l = limit || 20
+    const o = offset || 0
     const catId = category ? CATEGORIES[category]?.id : undefined
-    const deals = await getDeals(catId, limit || 20)
+    const { products, total } = await getDeals(catId, l, o)
     return {
       content: [{
         type: 'text',
-        text: deals.length
-          ? deals.map(p => `${p.name} | ${p.sku} | was ${p.price}€ → NOW ${p.special_price}€`).join('\n')
+        text: products.length
+          ? products.map(p => `${p.name} | ${p.sku} | was ${p.price}€ → NOW ${p.special_price}€`).join('\n') +
+              `\n--- ${products.length} deals shown${o + l < total ? ` | next offset: ${o + l}` : ''}`
           : 'No deals found right now.',
       }],
     }
   },
+  { annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: true } },
 )
 
 // ── Auth tools ────────────────────────────────────────────────────────────
 
 server.tool(
-  'auth_status',
+  'selver_auth_status',
   'Check if Selver auth token is valid. Shows user name and time until expiry.',
   {},
   async () => {
@@ -112,34 +140,44 @@ server.tool(
       const mins = status.expires_in ? Math.floor(status.expires_in / 60) : '?'
       return { content: [{ type: 'text', text: `Authenticated as ${status.user}. Token expires in ${mins} min.` }] }
     }
-    return { content: [{ type: 'text', text: `Not authenticated: ${status.error}\nRun login tool to get a fresh token (requires Smart-ID on phone).` }] }
+    return { content: [{ type: 'text', text: `Not authenticated: ${status.error}\nRun selver_login tool to get a fresh token (requires Smart-ID on phone).` }] }
   },
+  { annotations: { readOnlyHint: true, destructiveHint: false } },
 )
 
 server.tool(
-  'login',
+  'selver_login',
   'Trigger Smart-ID browser login for fresh auth token. Requires SELVER_ID_CODE env var and user phone confirmation. Token lasts 1 hour.',
   { timeout: z.number().optional() },
   async ({ timeout }) => {
     const msg = await auth.triggerLogin(timeout || 180)
     return { content: [{ type: 'text', text: msg }] }
   },
+  { annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true } },
 )
+
+// ── Shared helpers ────────────────────────────────────────────────────────
+
+async function requireAuth(): Promise<{ content: [{ type: 'text'; text: string }]; isError: true } | null> {
+  auth.loadToken()
+  const check = await auth.checkAuth()
+  if (!check.valid) return { isError: true, content: [{ type: 'text', text: `Auth required: ${check.error}` }] }
+  return null
+}
 
 // ── Cart tools (auth required) ────────────────────────────────────────────
 
 server.tool(
-  'cart_view',
+  'selver_cart_view',
   'View current cart contents and totals. Requires valid auth.',
   {},
   async () => {
-    auth.loadToken()
-    const check = await auth.checkAuth()
-    if (!check.valid) return { content: [{ type: 'text', text: `Auth required: ${check.error}` }] }
+    const denied = await requireAuth()
+    if (denied) return denied
 
     if (!auth.cartToken) await cart.createCart(auth)
     const { items, error } = await cart.getCart(auth)
-    if (error) return { content: [{ type: 'text', text: `Cart error: ${error}` }] }
+    if (error) return { isError: true, content: [{ type: 'text', text: `Cart error: ${error}` }] }
     if (!items.length) return { content: [{ type: 'text', text: 'Cart is empty.' }] }
 
     const totals = await cart.getCartTotals(auth)
@@ -147,11 +185,12 @@ server.tool(
     lines.push(`\nTotal: ${totals.grand_total}€ (${totals.items_qty} items)`)
     return { content: [{ type: 'text', text: lines.join('\n') }] }
   },
+  { annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: true } },
 )
 
 server.tool(
-  'cart_add',
-  'Add products to cart by SKU. Use search_products first to find SKUs. Requires valid auth.',
+  'selver_cart_add',
+  'Add products to cart by SKU. Use selver_search_products first to find SKUs. Requires valid auth.',
   {
     items: z.array(z.object({
       sku: z.string().describe('Product SKU (e.g. "T000058782")'),
@@ -159,9 +198,8 @@ server.tool(
     })),
   },
   async ({ items }) => {
-    auth.loadToken()
-    const check = await auth.checkAuth()
-    if (!check.valid) return { content: [{ type: 'text', text: `Auth required: ${check.error}` }] }
+    const denied = await requireAuth()
+    if (denied) return denied
 
     if (!auth.cartToken) await cart.createCart(auth)
     const cartItems = items.map(i => ({ sku: i.sku, qty: i.qty || 1 }))
@@ -177,73 +215,87 @@ server.tool(
         }],
       }
     }
-    return { content: [{ type: 'text', text: `Failed to add: ${res.error}` }] }
+    return { isError: true, content: [{ type: 'text', text: `Failed to add: ${res.error}` }] }
   },
+  { annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true } },
 )
 
 server.tool(
-  'cart_remove',
-  'Remove an item from cart by item_id (get item_id from cart_view).',
+  'selver_cart_remove',
+  'Remove an item from cart by item_id (get item_id from selver_cart_view).',
   { item_id: z.number() },
   async ({ item_id }) => {
-    auth.loadToken()
+    const denied = await requireAuth()
+    if (denied) return denied
     const res = await cart.removeFromCart(auth, item_id)
-    return { content: [{ type: 'text', text: res.success ? 'Item removed.' : `Failed: ${res.error}` }] }
+    if (!res.success) return { isError: true, content: [{ type: 'text', text: `Failed: ${res.error}` }] }
+    return { content: [{ type: 'text', text: 'Item removed.' }] }
   },
+  { annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: true } },
 )
 
 server.tool(
-  'cart_update_qty',
+  'selver_cart_update_qty',
   'Update quantity of an item already in cart.',
   { item_id: z.number(), sku: z.string(), qty: z.number() },
   async ({ item_id, sku, qty }) => {
-    auth.loadToken()
+    const denied = await requireAuth()
+    if (denied) return denied
     const res = await cart.updateCartItem(auth, item_id, sku, qty)
-    return { content: [{ type: 'text', text: res.success ? 'Quantity updated.' : `Failed: ${res.error}` }] }
+    if (!res.success) return { isError: true, content: [{ type: 'text', text: `Failed: ${res.error}` }] }
+    return { content: [{ type: 'text', text: 'Quantity updated.' }] }
   },
+  { annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true } },
 )
 
 server.tool(
-  'cart_clear',
+  'selver_cart_clear',
   'Remove ALL items from cart. Use with caution.',
   {},
   async () => {
-    auth.loadToken()
+    const denied = await requireAuth()
+    if (denied) return denied
     const res = await cart.clearCart(auth)
-    return { content: [{ type: 'text', text: res.success ? 'Cart cleared.' : `Failed: ${res.error}` }] }
+    if (!res.success) return { isError: true, content: [{ type: 'text', text: `Failed: ${res.error}` }] }
+    return { content: [{ type: 'text', text: 'Cart cleared.' }] }
   },
+  { annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: true } },
 )
 
 // ── Delivery tools ────────────────────────────────────────────────────────
 
 server.tool(
-  'timeslots',
+  'selver_timeslots',
   'Get available delivery timeslots. Requires valid auth and items in cart.',
   {},
   async () => {
-    auth.loadToken()
+    const denied = await requireAuth()
+    if (denied) return denied
     const slots = await cart.getTimeslots(auth)
     return { content: [{ type: 'text', text: JSON.stringify(slots, null, 2) }] }
   },
+  { annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: true } },
 )
 
 server.tool(
-  'reserve_timeslot',
-  'Reserve a delivery timeslot (45 min hold). Get slot IDs from timeslots tool.',
+  'selver_reserve_timeslot',
+  'Reserve a delivery timeslot (45 min hold). Get slot IDs from selver_timeslots tool.',
   { timeslot_id: z.number(), date: z.string().describe('Date YYYY-MM-DD') },
   async ({ timeslot_id, date }) => {
-    auth.loadToken()
+    const denied = await requireAuth()
+    if (denied) return denied
     const email = auth.user?.email || ''
     const phone = auth.user?.addresses?.[0]?.telephone || ''
     const res = await cart.reserveTimeslot(auth, timeslot_id, date, email, phone)
     return { content: [{ type: 'text', text: JSON.stringify(res, null, 2) }] }
   },
+  { annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true } },
 )
 
 // ── Pantry tools (storage-backed) ─────────────────────────────────────────
 
 server.tool(
-  'pantry_view',
+  'selver_pantry_view',
   'View current pantry (home inventory). Shows all items with quantities.',
   {},
   async () => {
@@ -261,10 +313,11 @@ server.tool(
       }],
     }
   },
+  { annotations: { readOnlyHint: true, destructiveHint: false } },
 )
 
 server.tool(
-  'pantry_add',
+  'selver_pantry_add',
   'Add one or more items to pantry. Pass an array for batch additions (single tool call instead of many).',
   {
     items: z.array(z.object({
@@ -278,10 +331,11 @@ server.tool(
     const result = await storage.addPantryItems(toAdd)
     return { content: [{ type: 'text', text: `Added ${toAdd.length} item(s). Pantry now has ${result.length} items.` }] }
   },
+  { annotations: { readOnlyHint: false, destructiveHint: false } },
 )
 
 server.tool(
-  'pantry_remove',
+  'selver_pantry_remove',
   'Remove one or more items from pantry. Pass an array for batch removals (single tool call instead of many).',
   {
     items: z.array(z.object({
@@ -293,29 +347,32 @@ server.tool(
     const result = await storage.removePantryItems(toRemove)
     return { content: [{ type: 'text', text: `Removed ${toRemove.length} item(s). Pantry now has ${result.length} items.` }] }
   },
+  { annotations: { readOnlyHint: false, destructiveHint: true } },
 )
 
 // ── Family config ─────────────────────────────────────────────────────────
 
 server.tool(
-  'family_config',
+  'selver_family_config',
   'View family profile: members, pets, dietary preferences, address, meal planning settings.',
   {},
   async () => {
     const config = await storage.getConfig()
-    if (!config) return { content: [{ type: 'text', text: 'No family config found. Set one up with update_family_config.' }] }
+    if (!config) return { content: [{ type: 'text', text: 'No family config found. Set one up with selver_update_family_config.' }] }
     return { content: [{ type: 'text', text: JSON.stringify(config, null, 2) }] }
   },
+  { annotations: { readOnlyHint: true, destructiveHint: false } },
 )
 
 server.tool(
-  'update_family_config',
+  'selver_update_family_config',
   'Update family profile (members, address, meal preferences). Pass partial config to merge with existing.',
   { config: z.record(z.any()).describe('Partial config object to merge') },
   async ({ config: patch }) => {
     const updated = await storage.updateConfig(patch)
     return { content: [{ type: 'text', text: `Config updated.\n${JSON.stringify(updated, null, 2)}` }] }
   },
+  { annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true } },
 )
 
 // ── Start ──────────────────────────────────────────────────────────────────
@@ -326,7 +383,19 @@ if (mode === 'http') {
   const port = parseInt(process.env.PORT || '3000')
   const apiKey = process.env.API_KEY
 
+  const MAX_SESSIONS = 50
   const transports = new Map<string, StreamableHTTPServerTransport>()
+
+  function checkOrigin(req: IncomingMessage, res: ServerResponse): boolean {
+    if (apiKey) return true // remote mode uses API key auth, no origin restriction needed
+    const origin = req.headers.origin
+    if (origin && !['http://localhost', 'http://127.0.0.1'].some(o => origin.startsWith(o))) {
+      res.writeHead(403, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ error: 'Forbidden origin' }))
+      return false
+    }
+    return true
+  }
 
   function checkApiKey(req: IncomingMessage, res: ServerResponse): boolean {
     if (!apiKey) return true
@@ -361,6 +430,7 @@ if (mode === 'http') {
       return
     }
 
+    if (!checkOrigin(req, res)) return
     if (!checkApiKey(req, res)) return
 
     if (req.method === 'POST') {
@@ -370,6 +440,12 @@ if (mode === 'http') {
 
       if (sessionId && transports.has(sessionId)) {
         await transports.get(sessionId)!.handleRequest(req, res, parsed)
+        return
+      }
+
+      if (transports.size >= MAX_SESSIONS) {
+        res.writeHead(503, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ error: 'Too many active sessions' }))
         return
       }
 

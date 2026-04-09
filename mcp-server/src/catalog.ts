@@ -46,6 +46,10 @@ async function catalogSearch(entity: string, query: object, size = 20, from = 0,
   return r.json()
 }
 
+function extractTotal(result: any): number {
+  return result?.hits?.total?.value ?? result?.hits?.total ?? 0
+}
+
 function formatProduct(src: any): Product {
   const stock = src.stock || {}
   return {
@@ -78,7 +82,7 @@ const NON_FOOD_CATEGORY_IDS = [
   511,
 ]
 
-export async function searchProducts(text?: string, categoryId?: number, size = 20): Promise<Product[]> {
+export async function searchProducts(text?: string, categoryId?: number, size = 20, from = 0): Promise<{ products: Product[]; total: number }> {
   const must: any[] = [{ terms: { status: [0, 1] } }]
   const must_not: any[] = []
   if (categoryId) {
@@ -95,8 +99,12 @@ export async function searchProducts(text?: string, categoryId?: number, size = 
   const filter: any = { bool: { must } }
   if (must_not.length) filter.bool.must_not = must_not
   const query = { query: { bool: { filter } } }
-  const result = await catalogSearch('product', query, size)
-  return (result?.hits?.hits || []).map((h: any) => formatProduct(h._source))
+  const result = await catalogSearch('product', query, size, from)
+  const total = extractTotal(result)
+  return {
+    products: (result?.hits?.hits || []).map((h: any) => formatProduct(h._source)),
+    total,
+  }
 }
 
 export async function getProduct(sku: string): Promise<Product | null> {
@@ -106,15 +114,17 @@ export async function getProduct(sku: string): Promise<Product | null> {
   return hits.length ? formatProduct(hits[0]._source) : null
 }
 
-export async function getDeals(categoryId?: number, size = 20): Promise<Product[]> {
+export async function getDeals(categoryId?: number, size = 20, from = 0): Promise<{ products: Product[]; total: number }> {
   const must: any[] = [
     { terms: { status: [0, 1] } },
     { exists: { field: 'special_price' } },
   ]
   if (categoryId) must.push({ terms: { category_ids: [categoryId] } })
   const query = { query: { bool: { filter: { bool: { must } } } } }
-  const result = await catalogSearch('product', query, size, 0, 'special_price:asc')
-  return (result?.hits?.hits || [])
+  const result = await catalogSearch('product', query, size, from, 'special_price:asc')
+  const products = (result?.hits?.hits || [])
     .map((h: any) => formatProduct(h._source))
     .filter(p => p.special_price && p.special_price < p.price)
+  const total = extractTotal(result)
+  return { products, total }
 }
