@@ -3,7 +3,7 @@
  */
 
 import { readFileSync, writeFileSync, existsSync } from 'fs'
-import { execFileSync } from 'child_process'
+import { spawn } from 'child_process'
 import { join, dirname } from 'path'
 import type { TokenData } from './types.js'
 
@@ -86,18 +86,30 @@ export class SelverAuth {
     }
 
     try {
-      const output = execFileSync(
-        'python3',
-        [script, '--id-code', idCode, '--timeout', String(timeout)],
-        { timeout: (timeout + 30) * 1000, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] },
-      )
+      const result = await new Promise<{ code: number; stdout: string; stderr: string }>((resolve) => {
+        let stdout = '', stderr = ''
+        const proc = spawn('python3', [script, '--id-code', idCode, '--timeout', String(timeout)], {
+          timeout: (timeout + 30) * 1000,
+        })
+        proc.stdout.on('data', (d: Buffer) => { stdout += d.toString() })
+        proc.stderr.on('data', (d: Buffer) => { stderr += d.toString() })
+        proc.on('close', (code) => resolve({ code: code ?? 1, stdout, stderr }))
+      })
+
       this.loadToken()
-      const codeMatch = output.match(/Verification code: (\d{4})/)
-      return codeMatch
-        ? `Smart-ID verification code: ${codeMatch[1]}. Confirm on your phone!`
-        : output
+
+      if (result.code !== 0) {
+        return `Auth failed: ${result.stderr || result.stdout}`
+      }
+
+      const authCheck = await this.checkAuth()
+      if (authCheck.valid) {
+        return `Login successful! Authenticated as ${authCheck.user}.`
+      }
+
+      return result.stdout
     } catch (e: any) {
-      return `Auth failed: ${e.stderr || e.message}`
+      return `Auth failed: ${e.message}`
     }
   }
 
